@@ -1,0 +1,46 @@
+[mermaid]
+....
+C4Context
+
+title Plan High Level Design
+
+Person(enduser, "End User", "User's Browser trying to access plan.epfl.ch and plan-epfl-tiles[0-4].epfl.ch")
+System_Ext(slb, "Load Balancer", "Load Balancer with TLS Termination for:\n plan.epfl.ch\nplan-epfl-tiles[0-4].epfl.ch")
+Rel(enduser, slb, "Connection to plan.epfl.ch", "https")
+
+System_Boundary(cache, "Caching Tier") {
+  System(varnish, "Proxy Cache", "Varnish instances for Caching")
+  Rel(slb, varnish, "Forward connections", "http")
+}
+
+System_Boundary(application, "Application Tier") {
+  System(httpd, "Apache httpd", "WebServer for reverse-proxy, and static storage")
+  Rel(varnish, httpd, "In case of cache miss", "http")
+
+  System(gmf, "GeoMapfish", "Application Server\ndocker-compose")
+  Rel(httpd, gmf, "Queries to the Application Server", "http")
+}
+
+System_Boundary(data, "Data Tier") {
+  System(postgresql, "PostgreSQL database", "Contains Data For GMF")
+  Rel(gmf, postgresql, "Access DataBase", "postgres")
+}
+
+System_Boundary(edition, "Data Edition Tier") {
+  System_Ext(edition_soft, "Data Edition via FME")
+  System(staging_postgres, "Staging Database")
+  Rel(edition_soft, staging_postgres, "edit live data")
+
+  System(fichedeporte, "Fiche de Portes Application", "Read/Edit door information")
+  Rel(fichedeporte, postgresql, "Live edit Production Data", "postgres")
+
+  System(tile_update, "Tile Update Process", "")
+  Rel(tile_update, postgresql, "Reads Production Data; Writes Staged Data to Production", "postgres")
+  Rel_U(tile_update, staging_postgres, "Reads FME Data; Writes Processed Data")
+}
+
+System_Ext(s3epflch, "Bucket Tile Storage", "Public Bucket for Storage of Tiles on s3.epfl.ch")
+Rel_L(httpd, s3epflch, "Fetch Tiles", "https")
+Rel(tile_update, s3epflch, "Write Tiles", "https")
+
+....
